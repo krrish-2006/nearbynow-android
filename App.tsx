@@ -1,13 +1,24 @@
 import React,{useEffect,useRef,useState} from 'react';
-import {ActivityIndicator,Alert,BackHandler,Dimensions,Image,Keyboard,Linking,Modal,Pressable,SafeAreaView,ScrollView,StatusBar,StyleSheet,Text,TextInput,View} from 'react-native';
-import {MapPin,Search,ShoppingBasket,ChevronDown,ChevronLeft,Plus,Minus,X,Camera,Store,LocateFixed,House,PackageOpen,ClipboardList,LogOut,Check,Clock,Navigation,ArrowRight,ShieldCheck} from 'lucide-react-native';
+import {ActivityIndicator,Alert,BackHandler,Dimensions,Image,Keyboard,Linking,Modal,Platform,Pressable,SafeAreaView,ScrollView,StatusBar,StyleSheet,Text,TextInput,View} from 'react-native';
+import {MapPin,Search,ShoppingBasket,ChevronDown,ChevronLeft,Plus,Minus,X,Camera,Store,House,PackageOpen,ClipboardList,LogOut,Check,ArrowRight,ShieldCheck,UserRound,Carrot,Milk,Cookie,CupSoda,Wheat,SprayCan,Headphones,Shirt,Grid2X2} from 'lucide-react-native';
 import * as Location from 'expo-location';
 import {User} from 'firebase/auth';
 import {login,logout,observeUser} from './src/auth';
 import {api,Address,Order,Product,money,photo} from './src/api';
 import {CartItem,persist,restore} from './src/storage';
 const green='#19523d',dark='#183d30',muted='#67786c',line='#e4e9e3',bg='#f5f8f3';
-const categories=[['Produce','🥕','#e5f0dd'],['Dairy & eggs','🥛','#e5f0f6'],['Snacks','◌','#f9e9de'],['Beverages','🥤','#eee3f3'],['Pantry','🌾','#f6efce'],['Personal care','✦','#f8e7dd'],['Household','⌂','#e7f0e1'],['Electronics','◉','#e4eff6'],['Fashion','♧','#eee2f1'],['Other','▦','#f5eed1']];
+const categories = [
+  ['Produce', Carrot, '#e5f0dd'],
+  ['Dairy & eggs', Milk, '#e5f0f6'],
+  ['Snacks', Cookie, '#f9e9de'],
+  ['Beverages', CupSoda, '#eee3f3'],
+  ['Pantry', Wheat, '#f6efce'],
+  ['Personal care', SprayCan, '#f8e7dd'],
+  ['Household', House, '#e7f0e1'],
+  ['Electronics', Headphones, '#e4eff6'],
+  ['Fashion', Shirt, '#eee2f1'],
+  ['Other', Grid2X2, '#f5eed1'],
+] as const;
 type Page='home'|'search'|'product'|'cart'|'account'|'orders'|'addresses'|'privacy';
 function Txt({children,style,lines}:any){return <Text numberOfLines={lines} style={[s.text,style]}>{children}</Text>}
 function Button({children,onPress,style,disabled=false}:any){return <Pressable disabled={disabled} onPress={onPress} style={[s.button,style,disabled&&{opacity:.45}]}><Txt style={{color:'white',fontWeight:'700',textAlign:'center'}}>{children}</Txt></Pressable>}
@@ -44,9 +55,100 @@ function Shop({user}:{user:User}){
  const placeOrder=async()=>{if(!place?.pin||!addressText.trim()){Alert.alert('Delivery address required','Choose or enter an address.');return}setCheckoutBusy(true);try{const key=requestKey||String(Date.now())+'-'+Math.random().toString(36).slice(2);setRequestKey(key);await api('orders',{key,pin:place.pin,address:addressText.trim(),items:cart.map(i=>({id:i.id,qty:i.qty,price:i.price}))});setCart([]);setRequestKey(null);setRefresh(v=>v+1);navigate('orders')}catch(e:any){Alert.alert('Order could not be placed',e.message)}finally{setCheckoutBusy(false)}};
  const detect=async()=>{setLocationBusy(true);try{const permission=await Location.requestForegroundPermissionsAsync();if(!permission.granted)throw Error('Allow location permission in Android settings, or search for an address.');const pos=await Location.getCurrentPositionAsync({accuracy:Location.Accuracy.Balanced});const coords={lat:pos.coords.latitude,lng:pos.coords.longitude};const r=await api<{suggestion:{pin:string;shop:string}|null}>('locate?'+new URLSearchParams({lat:String(coords.lat),lng:String(coords.lng)}));if(r.suggestion)changePlace({label:'Current location',address:'',pin:r.suggestion.pin,coordinates:coords});else Alert.alert('Outside delivery area','No participating shop is within 3 km. Search for another delivery address.')}catch(e:any){Alert.alert('Location unavailable',e.message)}finally{setLocationBusy(false)}};
  const saveAddress=async()=>{if(!editing?.label?.trim()||!editing.address?.trim()||!/^\d{6}$/.test(editing.pin)){Alert.alert('Check address','Enter a label, full address, and six-digit PIN code.');return}try{const r=await api<{id:string}>('addresses',editing);const saved={...editing,id:r.id};setRefresh(v=>v+1);changePlace(saved)}catch(e:any){Alert.alert('Could not save address',e.message)}};
- const header=<View style={s.header}><Pressable onPress={()=>page==='home'?setLocationOpen(true):back()}>{page==='home'?<View style={s.logo}><ShoppingBasket color={green} size={23}/><Txt style={s.brand}>Nearby<Txt style={{color:'#719d5a'}}>Now</Txt></Txt></View>:<ChevronLeft size={27} color={dark}/>}</Pressable><View style={{flex:1,marginLeft:14}}>{page==='home'?<Pressable onPress={()=>setLocationOpen(true)}><Txt style={s.small}>Delivering to</Txt><Txt style={{fontWeight:'700'}} lines={1}>{place?.label||'Set location'} · {place?.address||place?.pin||'Choose address'}⌄</Txt></Pressable>:<Txt style={{fontWeight:'800',fontSize:19}}>{({search:'Search',product:'Product details',cart:'My Cart',account:'My Account',orders:'My Orders',addresses:'My Addresses',privacy:'Account privacy'} as any)[page]}</Txt>}</View><IconButton onPress={()=>navigate('cart')}><ShoppingBasket size={24} color={green}/>{units>0&&<View style={s.badge}><Txt style={{color:'white',fontSize:10}}>{units}</Txt></View>}</IconButton></View>;
- return <SafeAreaView style={s.root}><StatusBar barStyle="dark-content"/>{header}
- {page==='home'&&<ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={s.content}><Pressable style={s.searchBar} onPress={()=>{setQuery('');setOffset(0);navigate('search')}}><Search size={20} color={muted}/><Txt style={{color:muted,marginLeft:10}}>Search for products or shops</Txt></Pressable><View style={s.hero}><Txt style={s.kicker}>THE NEIGHBOURHOOD MARKET</Txt><Txt style={s.heroTitle}>Your local shops,{"\n"}one doorstep.</Txt><Pressable style={s.heroAction} onPress={()=>setLocationOpen(true)}><Navigation size={17} color={dark}/><Txt style={{fontWeight:'700'}}>Choose delivery area</Txt></Pressable></View><Txt style={s.h2}>Shop by category</Txt><View style={s.categories}>{categories.map(([name,icon,color])=><Pressable key={name} style={s.category} onPress={()=>{setCategory(category===name?'':name);setOffset(0)}}><View style={[s.categoryIcon,{backgroundColor:color},category===name&&{borderWidth:2,borderColor:green}]}><Txt style={{fontSize:30,color:green}}>{icon}</Txt></View><Txt style={s.categoryLabel} lines={2}>{name}</Txt></Pressable>)}</View><Txt style={s.kicker}>⌂  LOCAL INVENTORY</Txt><Txt style={s.h2}>{category||'Around you'}</Txt>{!place?.pin?<Empty icon={<MapPin size={35} color={green}/>} title="What’s available near you?" detail="Choose a delivery address to browse nearby shops." action="Set location" onPress={()=>setLocationOpen(true)}/>:error?<Empty icon={<PackageOpen color={green}/>} title="Couldn’t load products" detail={error} action="Retry" onPress={()=>setRefresh(v=>v+1)}/>:<View style={s.grid}>{products.map(item)}{loading&&<ActivityIndicator color={green}/>}</View>}{more&&<Button onPress={()=>setOffset(v=>v+48)}>Load more</Button>}</ScrollView>}
+ const pageTitles = {
+   search: 'Search', product: 'Product details', cart: 'My Cart', account: 'My Account',
+   orders: 'My Orders', addresses: 'My Addresses', privacy: 'Account privacy',
+ };
+ const address = [place?.label, place?.address || place?.pin]
+   .filter(Boolean).join(' · ') || 'Choose a delivery address';
+
+ return <SafeAreaView style={s.root}>
+  <StatusBar barStyle="dark-content" />
+  {page === 'home' ? (
+    <View style={s.storefrontHeader}>
+      <View style={s.storefrontTopRow}>
+        <View style={s.logo}>
+          <ShoppingBasket color={green} size={24} />
+          <Txt style={s.brand}>Nearby<Text style={s.brandAccent}>Now</Text></Txt>
+        </View>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="My account"
+          onPress={() => navigate('account')}
+          style={({ pressed }) => [s.profileButton, pressed && s.pressed]}
+        >
+          <UserRound color={green} size={22} />
+        </Pressable>
+      </View>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Change delivery address. ${address}`}
+        onPress={() => setLocationOpen(true)}
+        style={({ pressed }) => [s.locationButton, pressed && s.pressed]}
+      >
+        <MapPin size={20} color={green} />
+        <View style={s.locationText}>
+          <Txt style={s.locationCaption}>Delivering to</Txt>
+          <Txt style={s.locationAddress} lines={1}>{address}</Txt>
+        </View>
+        <ChevronDown size={18} color={green} />
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Search for products or shops"
+        onPress={() => { setQuery(''); setOffset(0); navigate('search'); }}
+        style={({ pressed }) => [s.homeSearch, pressed && s.pressed]}
+      >
+        <Search size={21} color="#d8e8d8" />
+        <Txt style={s.homeSearchText} lines={1}>Search products or shops</Txt>
+      </Pressable>
+    </View>
+  ) : (
+    <View style={s.header}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Go back" onPress={back} hitSlop={10}>
+        <ChevronLeft size={27} color={dark} />
+      </Pressable>
+      <Txt style={s.pageTitle} lines={1}>{pageTitles[page]}</Txt>
+      {page !== 'cart' && <IconButton onPress={() => navigate('cart')}>
+        <ShoppingBasket size={24} color={green} />
+        {units > 0 && <View style={s.badge}><Txt style={s.badgeText}>{units}</Txt></View>}
+      </IconButton>}
+    </View>
+  )}
+  {page === 'home' && (
+    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={s.homeContent}>
+      <Txt style={s.h2}>Shop by category</Txt>
+      <View style={s.categories}>
+        {categories.map(([name, Icon, color]) => (
+          <Pressable
+            key={name}
+            accessibilityRole="button"
+            accessibilityState={{ selected: category === name }}
+            style={s.category}
+            onPress={() => { setCategory(category === name ? '' : name); setOffset(0); }}
+          >
+            <View style={[s.categoryIcon, { backgroundColor: color }, category === name && s.categorySelected]}>
+              <Icon size={24} color={green} strokeWidth={1.8} />
+            </View>
+            <Txt style={s.categoryLabel} lines={2}>{name}</Txt>
+          </Pressable>
+        ))}
+      </View>
+      {!category && (
+        <View style={s.hero}>
+          <Txt style={s.heroTitle}>Your local shops,{'\n'}one doorstep.</Txt>
+          <View style={s.heroIcon}><Store color="#e4f2d8" size={35} strokeWidth={1.6} /></View>
+        </View>
+      )}
+      <Txt style={s.h2}>{category || 'Around you'}</Txt>
+      {!place?.pin
+        ? <Empty icon={<MapPin size={35} color={green} />} title="What’s available near you?" detail="Choose a delivery address to browse nearby shops." action="Set location" onPress={() => setLocationOpen(true)} />
+        : error
+          ? <Empty icon={<PackageOpen color={green} />} title="Couldn’t load products" detail={error} action="Retry" onPress={() => setRefresh(v => v + 1)} />
+          : <View style={s.grid}>{products.map(item)}{loading && <ActivityIndicator color={green} />}</View>}
+      {more && <Button onPress={() => setOffset(v => v + 48)}>Load more</Button>}
+    </ScrollView>
+  )}
  {page==='search'&&<ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={s.content}><View style={s.searchBar}><Search color={dark} size={20}/><TextInput autoFocus placeholder="Search for products" value={query} onChangeText={v=>{setQuery(v);setOffset(0)}} style={s.searchInput}/>{!!query&&<IconButton onPress={()=>setQuery('')}><X size={20} color={dark}/></IconButton>}</View>{!query.trim()?null:loading&&products.length===0?<ActivityIndicator color={green}/>:error?<Empty icon={<Search color={green}/>} title="Couldn’t load products" detail={error} action="Retry" onPress={()=>setRefresh(v=>v+1)}/>:products.length?<><View style={{marginVertical:12}}>{products.slice(0,5).map(p=><Pressable key={p.id} style={s.suggestion} onPress={()=>{setSelected(p);navigate('product')}}>{photo(p.photo)?<Image source={{uri:photo(p.photo)!}} style={{width:34,height:34}} resizeMode="contain"/>:<Camera size={20} color={muted}/>}<Txt style={{marginLeft:14}}>{p.name}</Txt></Pressable>)}</View><Txt style={s.h2}>Showing results for “{query}”</Txt><View style={s.grid}>{products.map(item)}</View>{more&&<Button onPress={()=>setOffset(v=>v+48)}>Load more</Button>}</>:<Empty icon={<Search color="#a2aca5" size={42}/>} title="Nothing here yet" detail={'No products match “'+query+'” in your delivery area.'}/>}</ScrollView>}
  {page==='product'&&selected&&<ScrollView contentContainerStyle={{paddingBottom:35}}><View style={s.detailImage}>{photo(selected.photo)?<Image source={{uri:photo(selected.photo)!}} style={{width:'100%',height:'100%'}} resizeMode="contain"/>:<View style={s.noPhoto}><Camera size={40} color={muted}/><Txt>No photo yet</Txt></View>}</View><View style={s.content}><Txt style={s.small}>Home / {selected.category} / {selected.name}</Txt><Txt style={s.title}>{selected.name}</Txt><Txt style={{color:muted}}>{selected.shop} · {selected.unit}</Txt><View style={s.purchase}><View><Txt style={{fontSize:21,fontWeight:'800'}}>{money(selected.price)}</Txt><Txt style={s.small}>{selected.stock} available</Txt></View>{qty(selected)}</View><Txt style={s.h2}>Why shop from NearbyNow?</Txt>{[['Local shops','Buy from independent shops near your address.'],['Real product photos','See the photo supplied by the shop.'],['Nearby delivery','Order when a rider is available near the shop.']].map(([a,b])=><View key={a} style={s.feature}><Check size={20} color={green}/><View style={{flex:1}}><Txt style={{fontWeight:'700'}}>{a}</Txt><Txt style={s.small}>{b}</Txt></View></View>)}<Txt style={s.h2}>Product details</Txt><Txt>Category: {selected.category}</Txt><Txt>Pack size: {selected.unit}</Txt><Txt>Sold by: {selected.shop}</Txt>{related.length>0&&<><Txt style={[s.h2,{marginTop:30}]}>Similar products</Txt><ScrollView horizontal showsHorizontalScrollIndicator={false}>{related.map(item)}</ScrollView></>}</View></ScrollView>}
  {page==='cart'&&<><ScrollView contentContainerStyle={s.content}>{!cart.length?<Empty icon={<ShoppingBasket size={40} color={green}/>} title="Your cart is empty" detail="Add something from a nearby shop." action="Browse products" onPress={()=>navigate('home')}/>:<><View style={s.card}><Txt style={{fontWeight:'800'}}>◷  Delivery from {cart[0].shop}</Txt><Txt style={s.small}>{units} items · {available===null?'Checking rider availability…':available?'Rider available nearby':'No rider available right now'}</Txt>{cart.map(p=><View key={p.id} style={s.cartRow}>{photo(p.photo)?<Image source={{uri:photo(p.photo)!}} style={s.cartPhoto} resizeMode="contain"/>:<Camera color={muted}/>}<View style={{flex:1}}><Txt style={{fontWeight:'700'}} lines={2}>{p.name}</Txt><Txt style={s.small}>{p.unit}</Txt><Txt style={{fontWeight:'800'}}>{money(p.price)}</Txt></View>{qty(p)}</View>)}</View><View style={s.card}><Txt style={s.h2}>Bill details</Txt><View style={s.bill}><Txt>Items total</Txt><Txt>{money(total)}</Txt></View><View style={s.bill}><Txt>Delivery charge</Txt><Txt>{money(0)}</Txt></View><View style={s.bill}><Txt style={{fontWeight:'800'}}>Grand total</Txt><Txt style={{fontWeight:'800'}}>{money(total)}</Txt></View></View><View style={s.card}><Txt style={{fontWeight:'800'}}>Cancellation policy</Txt><Txt style={s.small}>Orders can be cancelled before the shop accepts them.</Txt></View></>}</ScrollView>{cart.length>0&&<View style={s.cartBottom}><Pressable style={s.bill} onPress={()=>setLocationOpen(true)}><MapPin size={21} color={green}/><View style={{flex:1,marginHorizontal:8}}><Txt style={{fontWeight:'700'}}>Delivering to {place?.label||'your address'}</Txt><Txt style={s.small} lines={1}>{place?.address||'Choose a location'}</Txt></View><Txt style={{color:green,fontWeight:'700'}}>Change</Txt></Pressable><TextInput style={s.addressInput} value={addressText} onChangeText={setAddressText} placeholder="Flat, street and landmark" multiline/><Button disabled={checkoutBusy||available!==true} onPress={placeOrder} style={{marginTop:8}}>{checkoutBusy?'Placing order…':available?'Place order · '+money(total):'Waiting for a nearby rider'}</Button></View>}</>}
@@ -54,8 +156,54 @@ function Shop({user}:{user:User}){
  {page==='orders'&&<ScrollView contentContainerStyle={s.content}>{!!error&&<Txt style={{color:'#a62727'}}>{error}</Txt>}{orders.length?orders.map(o=><View key={o.id} style={s.card}><View style={s.bill}><Check color={green}/><View style={{flex:1,marginHorizontal:10}}><Txt style={{fontWeight:'800',fontSize:17}}>{o.status==='delivered'?'Order arrived':o.status[0].toUpperCase()+o.status.slice(1)}</Txt><Txt style={s.small}>{money(o.total)} · {new Date(o.created).toLocaleString('en-IN')}</Txt></View></View><Txt style={{marginTop:10}}>{o.shop}</Txt><ScrollView horizontal style={{marginTop:12}}>{o.lines.map(l=><View key={l.id} style={s.orderItem}>{photo(l.photo)?<Image source={{uri:photo(l.photo)!}} style={s.cartPhoto} resizeMode="contain"/>:<Camera color={muted}/>}<Txt style={s.small} lines={2}>{l.qty} × {l.name}</Txt></View>)}</ScrollView><Txt style={s.small}>Deliver to · {o.address}, {o.pin}</Txt>{o.position&&<Pressable onPress={()=>Linking.openURL('https://www.google.com/maps/search/?api=1&query='+o.position!.lat+','+o.position!.lng)}><Txt style={{color:green,marginTop:8}}>View rider location</Txt></Pressable>}{o.status==='placed'&&<Button style={{marginTop:15}} onPress={()=>Alert.alert('Cancel order?','This order has not yet been accepted by the shop.',[{text:'Keep order'},{text:'Cancel order',style:'destructive',onPress:async()=>{try{await api('transition',{id:o.id,to:'cancelled'});setRefresh(v=>v+1)}catch(e:any){Alert.alert('Could not cancel',e.message)}}}])}>Cancel order</Button>}</View>):<Empty icon={<PackageOpen size={40} color={green}/>} title="No orders yet" detail="Your orders will appear here after checkout." action="Browse products" onPress={()=>navigate('home')}/>}</ScrollView>}
  {page==='addresses'&&<ScrollView contentContainerStyle={s.content}><Button onPress={()=>{setEditing({label:'Home',address:'',pin:''});setLocationOpen(true)}}>+ Add new address</Button>{addresses.map(a=><Pressable key={a.id} style={s.menuRow} onPress={()=>changePlace(a)}><House color={green}/><View style={{flex:1,marginLeft:12}}><Txt style={{fontWeight:'700'}}>{a.label}</Txt><Txt style={s.small}>{a.address} · {a.pin}</Txt></View><IconButton onPress={()=>{setEditing(a);setLocationOpen(true)}}><Txt style={{color:green}}>Edit</Txt></IconButton></Pressable>)}</ScrollView>}
  {page==='privacy'&&<View style={s.content}><Txt style={s.h2}>Your information on NearbyNow</Txt><Txt>Your saved addresses and order history are linked to your signed-in account. Shops see orders placed with them; assigned riders see delivery details needed to complete a delivery.</Txt><Button style={{marginTop:24}} onPress={()=>navigate('addresses')}>Manage saved addresses</Button></View>}
- {page==='home'&&<View style={s.bottomNav}><Pressable onPress={()=>navigate('home')}><Store size={23} color={green}/><Txt style={s.small}>Shop</Txt></Pressable><Pressable onPress={()=>navigate('orders')}><ClipboardList size={23} color={green}/><Txt style={s.small}>Orders</Txt></Pressable><Pressable onPress={()=>navigate('account')}><House size={23} color={green}/><Txt style={s.small}>Account</Txt></Pressable></View>}
- <Modal visible={locationOpen} animationType="slide" onRequestClose={()=>setLocationOpen(false)}><SafeAreaView style={s.root}><View style={s.header}><Txt style={s.h2}>Change location</Txt><IconButton onPress={()=>{setLocationOpen(false);setEditing(null)}}><X color={dark}/></IconButton></View><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={s.content}><Button disabled={locationBusy} onPress={detect}>{locationBusy?'Detecting…':'◎  Detect my location'}</Button><TextInput style={[s.searchBar,{marginTop:18}]} placeholder="Search delivery location" value={locationQuery} onChangeText={setLocationQuery}/>{locationQuery.length>=3&&<>{suggestions.map((a,i)=><Pressable key={a.address+i} style={s.menuRow} onPress={()=>setEditing({label:'Home',address:a.address,pin:a.pin||''})}><MapPin color={green}/><View style={{flex:1,marginLeft:12}}><Txt style={{fontWeight:'700'}}>{a.name}</Txt><Txt style={s.small}>{a.address}</Txt></View></Pressable>)}{shops.map((a,i)=><Pressable key={a.name+i} style={s.menuRow} onPress={()=>changePlace({label:a.name+' area',address:a.address,pin:a.pin})}><Store color={green}/><Txt style={{marginLeft:12}}>{a.address} · {a.pin}</Txt></Pressable>)}{/^[1-9]\d{5}$/.test(locationQuery)&&<Button onPress={()=>changePlace({label:'Delivery area',address:'',pin:locationQuery})}>Use {locationQuery}</Button>}</>}{editing&&<View style={[s.card,{marginTop:18}]}><Txt style={s.h2}>{editing.id?'Edit address':'Confirm address'}</Txt><TextInput style={s.addressInput} placeholder="Label (Home or Work)" value={editing.label} onChangeText={v=>setEditing({...editing,label:v})}/><TextInput style={s.addressInput} placeholder="Flat, street, landmark and city" value={editing.address} onChangeText={v=>setEditing({...editing,address:v})}/><TextInput style={s.addressInput} placeholder="Six-digit PIN code" keyboardType="number-pad" maxLength={6} value={editing.pin} onChangeText={v=>setEditing({...editing,pin:v})}/><Button onPress={saveAddress}>Save address</Button>{editing.address&&/^[1-9]\d{5}$/.test(editing.pin)&&<Pressable onPress={()=>changePlace(editing)} style={{padding:15,alignItems:'center'}}><Txt style={{color:green}}>Use without saving</Txt></Pressable>}</View>}<Txt style={[s.h2,{marginTop:25}]}>Your saved addresses</Txt>{addresses.map(a=><Pressable key={a.id} style={s.menuRow} onPress={()=>changePlace(a)}><House color={green}/><View style={{flex:1,marginLeft:12}}><Txt style={{fontWeight:'700'}}>{a.label}</Txt><Txt style={s.small}>{a.address} · {a.pin}</Txt></View><IconButton onPress={()=>setEditing(a)}><Txt style={{color:green}}>Edit</Txt></IconButton></Pressable>)}</ScrollView></SafeAreaView></Modal>
+  {page === 'home' && (
+    <View style={s.bottomNav}>
+      <Pressable accessibilityRole="tab" accessibilityState={{ selected: true }} style={s.navTab} onPress={() => navigate('home')}>
+        <View style={[s.navIcon, s.navActive]}><Store size={21} color={green} /></View>
+        <Txt style={[s.navLabel, s.navActiveLabel]}>Shop</Txt>
+      </Pressable>
+      <Pressable accessibilityRole="tab" style={s.navTab} onPress={() => navigate('orders')}>
+        <View style={s.navIcon}><ClipboardList size={21} color={green} /></View>
+        <Txt style={s.navLabel}>Orders</Txt>
+      </Pressable>
+      <Pressable accessibilityRole="tab" accessibilityLabel={units ? `Cart, ${units} items` : 'Cart'} style={s.navTab} onPress={() => navigate('cart')}>
+        <View style={s.navIcon}>
+          <ShoppingBasket size={21} color={green} />
+          {units > 0 && <View style={s.badge}><Txt style={s.badgeText}>{units}</Txt></View>}
+        </View>
+        <Txt style={s.navLabel}>Cart</Txt>
+      </Pressable>
+    </View>
+  )}
+ <Modal visible={locationOpen} animationType="slide" onRequestClose={()=>setLocationOpen(false)}><SafeAreaView style={s.modalRoot}><View style={s.header}><Txt style={s.h2}>Change location</Txt><IconButton onPress={()=>{setLocationOpen(false);setEditing(null)}}><X color={dark}/></IconButton></View><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={s.content}><Button disabled={locationBusy} onPress={detect}>{locationBusy?'Detecting…':'◎  Detect my location'}</Button><TextInput style={[s.searchBar,{marginTop:18}]} placeholder="Search delivery location" value={locationQuery} onChangeText={setLocationQuery}/>{locationQuery.length>=3&&<>{suggestions.map((a,i)=><Pressable key={a.address+i} style={s.menuRow} onPress={()=>setEditing({label:'Home',address:a.address,pin:a.pin||''})}><MapPin color={green}/><View style={{flex:1,marginLeft:12}}><Txt style={{fontWeight:'700'}}>{a.name}</Txt><Txt style={s.small}>{a.address}</Txt></View></Pressable>)}{shops.map((a,i)=><Pressable key={a.name+i} style={s.menuRow} onPress={()=>changePlace({label:a.name+' area',address:a.address,pin:a.pin})}><Store color={green}/><Txt style={{marginLeft:12}}>{a.address} · {a.pin}</Txt></Pressable>)}{/^[1-9]\d{5}$/.test(locationQuery)&&<Button onPress={()=>changePlace({label:'Delivery area',address:'',pin:locationQuery})}>Use {locationQuery}</Button>}</>}{editing&&<View style={[s.card,{marginTop:18}]}><Txt style={s.h2}>{editing.id?'Edit address':'Confirm address'}</Txt><TextInput style={s.addressInput} placeholder="Label (Home or Work)" value={editing.label} onChangeText={v=>setEditing({...editing,label:v})}/><TextInput style={s.addressInput} placeholder="Flat, street, landmark and city" value={editing.address} onChangeText={v=>setEditing({...editing,address:v})}/><TextInput style={s.addressInput} placeholder="Six-digit PIN code" keyboardType="number-pad" maxLength={6} value={editing.pin} onChangeText={v=>setEditing({...editing,pin:v})}/><Button onPress={saveAddress}>Save address</Button>{editing.address&&/^[1-9]\d{5}$/.test(editing.pin)&&<Pressable onPress={()=>changePlace(editing)} style={{padding:15,alignItems:'center'}}><Txt style={{color:green}}>Use without saving</Txt></Pressable>}</View>}<Txt style={[s.h2,{marginTop:25}]}>Your saved addresses</Txt>{addresses.map(a=><Pressable key={a.id} style={s.menuRow} onPress={()=>changePlace(a)}><House color={green}/><View style={{flex:1,marginLeft:12}}><Txt style={{fontWeight:'700'}}>{a.label}</Txt><Txt style={s.small}>{a.address} · {a.pin}</Txt></View><IconButton onPress={()=>setEditing(a)}><Txt style={{color:green}}>Edit</Txt></IconButton></Pressable>)}</ScrollView></SafeAreaView></Modal>
  </SafeAreaView>
 }
-const s=StyleSheet.create({root:{flex:1,backgroundColor:'white'},center:{flex:1,justifyContent:'center',alignItems:'center',gap:12},auth:{flex:1,backgroundColor:bg,alignItems:'center',justifyContent:'center',padding:24},authBox:{padding:28,borderRadius:18,backgroundColor:'white',width:'100%',borderWidth:1,borderColor:line},logo:{flexDirection:'row',alignItems:'center',gap:7},brand:{fontSize:23,fontWeight:'900',color:dark,letterSpacing:-1},title:{fontSize:25,fontWeight:'800',color:dark,marginVertical:12},text:{fontSize:15,color:dark},small:{color:muted,fontSize:12,marginTop:3},h2:{fontSize:21,fontWeight:'800',color:dark,marginVertical:12},button:{backgroundColor:green,borderRadius:10,paddingVertical:14,paddingHorizontal:18,alignItems:'center'},google:{borderWidth:1,borderColor:line,borderRadius:10,padding:15,flexDirection:'row',justifyContent:'center',alignItems:'center',gap:12},header:{minHeight:61,borderBottomWidth:1,borderColor:line,paddingHorizontal:17,flexDirection:'row',alignItems:'center',justifyContent:'space-between',backgroundColor:'white'},badge:{position:'absolute',right:0,top:0,backgroundColor:green,borderRadius:20,minWidth:16,height:16,alignItems:'center'},content:{padding:18,paddingBottom:35},searchBar:{borderWidth:1,borderColor:line,borderRadius:12,minHeight:49,paddingHorizontal:14,flexDirection:'row',alignItems:'center',backgroundColor:'#f8faf7'},searchInput:{flex:1,fontSize:16,color:dark,marginLeft:10},hero:{backgroundColor:'#154a38',borderRadius:22,padding:25,minHeight:220,justifyContent:'center',marginVertical:20},kicker:{color:'#86ad80',fontSize:12,fontWeight:'800',letterSpacing:2,marginVertical:7},heroTitle:{color:'white',fontSize:31,fontWeight:'800',lineHeight:38},heroAction:{backgroundColor:'#e8f2dc',borderRadius:9,padding:12,flexDirection:'row',alignItems:'center',gap:8,alignSelf:'flex-start',marginTop:18},categories:{flexDirection:'row',flexWrap:'wrap',justifyContent:'space-between',rowGap:22,marginBottom:30},category:{width:'19%',alignItems:'center',gap:7},categoryLabel:{textAlign:'center',fontWeight:'700',fontSize:11,lineHeight:15,minHeight:30,width:'100%'},categoryIcon:{height:65,width:'100%',borderRadius:18,alignItems:'center',justifyContent:'center'},grid:{flexDirection:'row',flexWrap:'wrap',columnGap:10},productActions:{marginTop:'auto',alignItems:'flex-start',gap:6},product:{width:(Dimensions.get('window').width-46)/2,borderWidth:1,borderColor:line,borderRadius:12,backgroundColor:'white',overflow:'hidden',marginBottom:10,minHeight:254},productImage:{height:132,backgroundColor:'#fafbf9',justifyContent:'center',alignItems:'center'},productPhoto:{width:'100%',height:'100%'},noPhoto:{alignItems:'center',justifyContent:'center',gap:7},add:{borderWidth:1,borderColor:green,paddingHorizontal:12,paddingVertical:6,borderRadius:6,backgroundColor:'#f8fff5'},stepper:{backgroundColor:'#29820d',borderRadius:6,flexDirection:'row',alignItems:'center',justifyContent:'space-between',minWidth:104},empty:{backgroundColor:bg,borderRadius:18,padding:28,alignItems:'center',justifyContent:'center',marginVertical:20,borderWidth:1,borderColor:'#dfe8db',minHeight:190},suggestion:{flexDirection:'row',alignItems:'center',paddingVertical:8},detailImage:{height:340,margin:18,backgroundColor:'#f8faf8',borderRadius:14,alignItems:'center',justifyContent:'center'},purchase:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',marginVertical:24},feature:{flexDirection:'row',gap:13,marginVertical:11},card:{backgroundColor:'white',borderRadius:14,padding:16,marginBottom:13,borderWidth:1,borderColor:line},cartRow:{flexDirection:'row',alignItems:'center',gap:12,paddingVertical:14,borderTopWidth:1,borderColor:line},cartPhoto:{width:58,height:62},bill:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',marginVertical:5},cartBottom:{backgroundColor:'white',padding:15,borderTopWidth:1,borderColor:line},addressInput:{borderWidth:1,borderColor:line,borderRadius:9,padding:11,marginVertical:8,color:dark,minHeight:48},menuRow:{flexDirection:'row',alignItems:'center',paddingVertical:17,borderBottomWidth:1,borderColor:line},orderItem:{width:105,alignItems:'center',marginRight:10,marginBottom:12},bottomNav:{flexDirection:'row',justifyContent:'space-around',paddingVertical:9,borderTopWidth:1,borderColor:line,backgroundColor:'white'}});
+const s=StyleSheet.create({root:{flex:1,backgroundColor:'white',paddingTop:Platform.OS==='android'?(StatusBar.currentHeight??0):0},modalRoot:{flex:1,backgroundColor:'white'},center:{flex:1,justifyContent:'center',alignItems:'center',gap:12},auth:{flex:1,backgroundColor:bg,alignItems:'center',justifyContent:'center',padding:24},authBox:{padding:28,borderRadius:18,backgroundColor:'white',width:'100%',borderWidth:1,borderColor:line},logo:{flexDirection:'row',alignItems:'center',gap:7},brand:{fontSize:23,fontWeight:'900',color:dark,letterSpacing:-1},title:{fontSize:25,fontWeight:'800',color:dark,marginVertical:12},text:{fontSize:15,color:dark},small:{color:muted,fontSize:12,marginTop:3},h2:{fontSize:21,fontWeight:'800',color:dark,marginVertical:12},button:{backgroundColor:green,borderRadius:10,paddingVertical:14,paddingHorizontal:18,alignItems:'center'},google:{borderWidth:1,borderColor:line,borderRadius:10,padding:15,flexDirection:'row',justifyContent:'center',alignItems:'center',gap:12},header:{minHeight:61,borderBottomWidth:1,borderColor:line,paddingHorizontal:17,flexDirection:'row',alignItems:'center',justifyContent:'space-between',backgroundColor:'white'},badge:{position:'absolute',right:0,top:0,backgroundColor:green,borderRadius:20,minWidth:16,minHeight:16,paddingHorizontal:2,alignItems:'center',justifyContent:'center'},content:{padding:18,paddingBottom:35},searchBar:{borderWidth:1,borderColor:line,borderRadius:12,minHeight:49,paddingHorizontal:14,flexDirection:'row',alignItems:'center',backgroundColor:'#f8faf7'},searchInput:{flex:1,fontSize:16,color:dark,marginLeft:10},
+ storefrontHeader: {paddingHorizontal:18,paddingTop:8,paddingBottom:14,backgroundColor:'#f5f8f3',borderBottomWidth:1,borderColor:line},
+ storefrontTopRow: {flexDirection:'row',justifyContent:'space-between',alignItems:'center',minHeight:46},
+ brandAccent: {color:'#63874f'},
+ profileButton: {width:44,height:44,borderRadius:22,borderWidth:1,borderColor:'#d9e4d8',backgroundColor:'white',alignItems:'center',justifyContent:'center'},
+ pressed: {opacity:.72},
+ locationButton: {flexDirection:'row',alignItems:'center',gap:9,minHeight:48,alignSelf:'stretch',marginTop:5,marginBottom:9},
+ locationText: {flex:1,minWidth:0},
+ locationCaption: {fontSize:12,fontWeight:'600',color:muted},
+ locationAddress: {fontSize:16,fontWeight:'800',marginTop:1},
+ homeSearch: {flexDirection:'row',alignItems:'center',gap:12,minHeight:50,paddingHorizontal:14,borderRadius:13,backgroundColor:'#213f33'},
+ homeSearchText: {color:'#f0f5ef',fontSize:15,flexShrink:1},
+ pageTitle: {flex:1,marginLeft:14,fontWeight:'800',fontSize:19},
+ badgeText: {color:'white',fontSize:10,fontWeight:'700'},
+ homeContent: {paddingHorizontal:18,paddingTop:6,paddingBottom:24},
+ hero: {backgroundColor:'#154a38',borderRadius:17,paddingHorizontal:17,paddingVertical:16,flexDirection:'row',alignItems:'center',gap:12,marginBottom:6},
+ heroTitle: {color:'white',fontSize:22,fontWeight:'800',lineHeight:28,flex:1},
+ heroIcon: {width:60,height:60,borderRadius:18,backgroundColor:'#275842',alignItems:'center',justifyContent:'center'},
+ categories: {flexDirection:'row',flexWrap:'wrap',justifyContent:'space-between',rowGap:7,marginBottom:13},
+ category: {width:'19%',alignItems:'center',gap:4},
+ categoryLabel: {textAlign:'center',fontWeight:'700',fontSize:11,lineHeight:14,minHeight:28,width:'100%'},
+ categoryIcon: {height:48,width:'100%',borderRadius:13,borderWidth:1,borderColor:'transparent',alignItems:'center',justifyContent:'center'},
+ categorySelected: {borderColor:green},
+ grid:{flexDirection:'row',flexWrap:'wrap',columnGap:10},productActions:{marginTop:'auto',alignItems:'flex-start',gap:6},product:{width:(Dimensions.get('window').width-46)/2,borderWidth:1,borderColor:line,borderRadius:12,backgroundColor:'white',overflow:'hidden',marginBottom:10,minHeight:254},productImage:{height:132,backgroundColor:'#fafbf9',justifyContent:'center',alignItems:'center'},productPhoto:{width:'100%',height:'100%'},noPhoto:{alignItems:'center',justifyContent:'center',gap:7},add:{borderWidth:1,borderColor:green,paddingHorizontal:12,paddingVertical:6,borderRadius:6,backgroundColor:'#f8fff5'},stepper:{backgroundColor:'#29820d',borderRadius:6,flexDirection:'row',alignItems:'center',justifyContent:'space-between',minWidth:104},empty:{backgroundColor:bg,borderRadius:18,padding:28,alignItems:'center',justifyContent:'center',marginVertical:20,borderWidth:1,borderColor:'#dfe8db',minHeight:190},suggestion:{flexDirection:'row',alignItems:'center',paddingVertical:8},detailImage:{height:340,margin:18,backgroundColor:'#f8faf8',borderRadius:14,alignItems:'center',justifyContent:'center'},purchase:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',marginVertical:24},feature:{flexDirection:'row',gap:13,marginVertical:11},card:{backgroundColor:'white',borderRadius:14,padding:16,marginBottom:13,borderWidth:1,borderColor:line},cartRow:{flexDirection:'row',alignItems:'center',gap:12,paddingVertical:14,borderTopWidth:1,borderColor:line},cartPhoto:{width:58,height:62},bill:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',marginVertical:5},cartBottom:{backgroundColor:'white',padding:15,borderTopWidth:1,borderColor:line},addressInput:{borderWidth:1,borderColor:line,borderRadius:9,padding:11,marginVertical:8,color:dark,minHeight:48},menuRow:{flexDirection:'row',alignItems:'center',paddingVertical:17,borderBottomWidth:1,borderColor:line},orderItem:{width:105,alignItems:'center',marginRight:10,marginBottom:12},bottomNav:{flexDirection:'row',paddingVertical:5,borderTopWidth:1,borderColor:line,backgroundColor:'white'},
+ navTab: {flex:1,minHeight:48,alignItems:'center',justifyContent:'center',gap:2},
+ navIcon: {minWidth:47,minHeight:27,borderRadius:14,alignItems:'center',justifyContent:'center'},
+ navActive: {backgroundColor:'#e5efde'},
+ navLabel: {color:muted,fontSize:11,fontWeight:'600'},
+ navActiveLabel: {color:green,fontWeight:'800'}});
