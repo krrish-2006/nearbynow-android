@@ -1,0 +1,39 @@
+{
+  "expo": {
+    "name": "NearbyNow",
+    "slug": "nearbynow-customer",
+    "scheme": "nearbynow",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "android": {
+      "package": "store.nearbynow.customer",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundColor": "#e7f0e1"
+      },
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION"
+      ],
+      "predictiveBackGestureEnabled": false
+    },
+    "plugins": [
+      "expo-location",
+      "@react-native-google-signin/google-signin"
+    ],
+    "owner": "krrishsinghisthebest",
+    "extra": {
+      "eas": {
+        "projectId": "9ce2825c-7ae6-459a-af2b-2cf06ebdd2b6"
+      }
+    },
+    "updates": {
+      "url": "https://u.expo.dev/9ce2825c-7ae6-459a-af2b-2cf06ebdd2b6"
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    }
+  }
+}
